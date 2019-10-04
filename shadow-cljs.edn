@@ -1,0 +1,8 @@
+{:source-paths ["src"]
+ :dependencies [[reagent "0.9.0-rc1"] [stylefy "1.14.0"]]
+ :dev-http {8080 "public/"}
+ :nrepl {:port 8777
+         :middleware [refactor-nrepl.middleware/wrap-refactor]}
+ :builds {:app {:target :browser
+                :modules {:main {:init-fn app.main/main!}}
+                :devtools {:after-load app.main/reload!}}}}
