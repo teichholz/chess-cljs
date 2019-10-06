@@ -24,9 +24,62 @@
                  :height (- (:cell css-state) (:figure-gap css-state))
                  :width (- (:cell css-state) (:figure-gap css-state))})
 
+
+(defn dispatch-img [fig team]
+  (let [team-prefix (if (= team :dark) "d" "l")
+        type-prefix (subs (str fig) 1 2)]
+    (str "/figures/Chess_" type-prefix team-prefix "t60.png")))
+
+(defprotocol Figure
+  "Protokoll für die moveSet funktion einer figur"
+  (moveSet [this]))
+
+(defrecord Pawn [team moved]
+  Figure
+  (moveSet [this] "not implemented yet"))
+
+(defrecord King [team]
+  Figure
+  (moveSet [this] "not implemented yet"))
+
+(defrecord Queen [team]
+  Figure
+  (moveSet [this] "not implemented yet"))
+
+(defrecord Castle [team]
+  Figure
+  (moveSet [this] "not implemented yet"))
+
+(defrecord Bishop [team]
+  Figure
+  (moveSet [this] "not implemented yet"))
+
+(defrecord Noble [team]
+  Figure
+  (moveSet [this] "not implemented yet"))
+
+(defn create-figure [fig team]
+  (assoc
+    (cond
+      (= :pawn fig) (Pawn. team)
+      (= :noble fig) (Noble. team)
+      (= :bishop fig) (Bishop. team)
+      (= :queen fig) (Queen. team)
+      (= :king fig) (King. team)
+      (= :castle fig) (Castle. team))
+    :img (dispatch-img fig team)))
+
+(create-figure :pawn :light)
+
+
 (defn init-board []
   "Gibt ein 8x8 Spielbrett in Form von Vektoren (Arraylists) zurück"
   (vec (repeat 8 (vec (range 1 9)))))
+
+(defn init-b []
+  (for [lightPawns (repeatedly (fn [] (create-figure :pawn :light)))
+        darkPawns (repeatedly (fn [] (create-figure :pawn :dark)))]
+    (take 8 darkPawns)))
 
 
 (def state (r/atom {:board [(init-board)] ; Letzte Brett in Board ist das aktuelle
@@ -41,6 +94,9 @@
   (peek (:board @state)))
 
 ;;
+
+(defn figure [type team])
+
 (defn map-board [board]
   "Gibt eine Sequenz valider Hiccup Syntax in From <row> 8 x <square /></row>"
   (let [tf (iterate (fn [x] (not x)) true)]
@@ -57,7 +113,6 @@
     board)))
 
 
-(map-board (current-board state))
 
 (defn board [board]
   "Valide Hiccup Syntax zum darstellen des 8x8 Brett via divs"
