@@ -90,10 +90,10 @@
                     :darkKing nil
                     :selected nil})) ; ausgewaehlte Figur
 ;; zeiger auf das board
-(def board-sate (r/cursor state [:board]))
+(def board-state (r/cursor state [:board]))
+(def selected-state (r/cursor state [:selected]))
 ;; muss derefed werden, quasi cursor mit einer Funktion
 (def last-board (reagent.ratom/make-reaction #(peek (:board @state))))
-
 
 
 ;; Selektoren
@@ -101,15 +101,23 @@
 ;;   "liefert das aktuelle Board"
 ;;   (peek (:board @state)))
 
-(defn nth-in [board y x]
+;; Helper
+(defn in-range [board y x]
+  (not (or (> y 7) (< y 0) (> x 7) (< x 0))))
+
+(defn nth-in-vec [board y x]
   (nth (nth board y) x))
 
-(nth-in @last-board 6 1)
+(defn assoc-in-vec [board y x v]
+  (assoc board y (assoc (nth board y) x true)))
+
+;; (assoc-in-vec [[1 2 3]] 0 1 true)
+
 
 ;; Fig movement
 (defn square-empty? [board y x]
   "prueft ob square leer ist, wenn nicht gibt es die Farbe der Figur zurueck"
-  (let [square (nth-in board y x)]
+  (let [square (nth-in-vec board y x)]
     (if (= square nil)
       true
       (:team square))))
@@ -118,37 +126,67 @@
 
 
 (defn square-moveable? [figure board y x]
-  "prueft ob die Figur auf ein Square bewegt werden kann"
-  (let [moveable (square-empty? board y x)]
-    (if (= moveable true)
-      true
-      (not (= (:team figure) moveable)))))
+  "prueft ob die Figur auf ein Square bewegt werden kann, gibt true zurueck wenn ja, :enemy wenn dort ein Feind war und false wenn das feld nicht existiert"
+  (if (in-range board y x)
+    (let [moveable (square-empty? board y x)]
+      (if (= moveable true)
+        true
+        (and (not (= (:team figure) moveable))
+             :enemy)))
+    false))
 
-;; (square-moveable? (nth-in @last-board 6 0) @last-board 7 1)
+(in-range @last-board 0 -1)
+;; (square-moveable? (nth-in-vec @last-board 6 0) @last-board 7 1)
 
+;; TODO Figur muss bei feindkontakt abbrechen
 (defn probe-while
   [figure board current-y current-x y-direction x-direction]
   "prueft ob die Figur sich in eine Richtung bewegen werden kann"
-  (loop [board (vec (repeat 8 (vec (repeat 8 false))))
-         cur-y current-y
-         cur-x current-x
-         moveable (square-moveable? figure board (+ current-y y-direction) (+ current-x x-direction))]
-    (if moveable
-      (let [new-board (assoc board cur-y (assoc (nth board cur-y) cur-x true))] ; setzt board an der richtigen stelle auf true
-        (recur new-board (+ cur-y y-direction) (+ cur-x x-direction) (square-moveable? figure board (+ cur-y y-direction) (+ cur-x x-direction))))
-      board)))
+  (loop [pos-board (vec (repeat 8 (vec (repeat 8 false))))
+         cur-y (+ current-y y-direction)
+         cur-x (+ current-x x-direction)
+         moveable (square-moveable? figure board cur-y cur-x)]
+    (if (or (not moveable))
+      pos-board
+      (if (= moveable :enemy)
+        ;; gib das Board hier nach zurueck
+        (assoc-in-vec pos-board cur-y cur-x true)
+        ;; mach weiter
+        (let [new-board (assoc-in-vec pos-board cur-y cur-x true)] ; setzt board an der richtigen stelle auf true
+          (println "recur" cur-y cur-x)
+          (recur new-board (+ cur-y y-direction) (+ cur-x x-direction) (square-moveable? figure board (+ cur-y y-direction) (+ cur-x x-direction))))))))
 
-;; (def b (vec (repeat 8 (vec (repeat 8 false)))))
-;; (assoc b 0 (assoc (nth b 0) 1 true))
-;; (probe-while (nth-in @last-board 6 0) @last-board 6 0 -1 0)
+;; (probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 -1 0)
 
-;; (defn combine-probe-while [figure board current-y current-x y-dir x-dir]
-;;   "prueft via probe-while mit allen Kombinationen aus dem array y-dir und x-dir"
-;;   (reduce
-;;    (fn [col previous] (map))
-;;    (for [y y-dir]
-;;         x x-dir
-;;     (probe-while figure board current-y current-x y x))))
+;; TODO saemtliche probe Matrixweise verodern
+(defn combine-probe-while [figure board current-y current-x y-dir x-dir]
+  "prueft via probe-while mit allen Kombinationen aus dem array y-dir und x-dir"
+   (for [y y-dir
+         x x-dir]
+     (probe-while figure board current-y current-x y x)))
+
+(comp)
+;; (combine-probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 [1 -1 0] [-1 1 0])
+
+
+;; Methoden zum interagieren mit dem Schachbrett
+(defn set-selected! [board y x]
+  "waehlt eine Figur an, merkt sich diese im Zustand und gibt sie zurueck"
+  (reset! selected-state (nth-in-vec board y x)))
+
+(defn set-last-board! [board]
+   "Fuegt ein neues Board ein"
+  (swap! state (fn [board-state] (conj board-state board))))
+
+(defn move-figure [board from-y from-x to-y to-x]
+  "bewegt eine Figur und gibt das neue Board zurueck"
+  (if (not (square-empty? board from-y from-x))
+    (let [figure (nth-in-vec board from-y from-x)]
+      (assoc-in-vec board from-y from-x nil)
+      (assoc-in-vec board to-y to-x figure))))
+
+;; (defn maybe-move-figure [board from-y from-x to-y to-x])
+;;   "versucht eine Figur zu bewegen, gibt das neue Board zurueck"
 
 
 ;;
@@ -200,4 +238,3 @@
   (println "App loaded!")
   (style/init)
   (init-app))
-
