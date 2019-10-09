@@ -108,8 +108,8 @@
 (defn nth-in-vec [board y x]
   (nth (nth board y) x))
 
-(defn assoc-in-vec [board y x v]
-  (assoc board y (assoc (nth board y) x true)))
+(defn assoc-in-vec [vec y x value]
+  (assoc vec y (assoc (nth vec y) x value)))
 
 ;; (assoc-in-vec [[1 2 3]] 0 1 true)
 
@@ -135,10 +135,9 @@
              :enemy)))
     false))
 
-(in-range @last-board 0 -1)
+;; (in-range @last-board 0 -1)
 ;; (square-moveable? (nth-in-vec @last-board 6 0) @last-board 7 1)
 
-;; TODO Figur muss bei feindkontakt abbrechen
 (defn probe-while
   [figure board current-y current-x y-direction x-direction]
   "prueft ob die Figur sich in eine Richtung bewegen werden kann"
@@ -156,17 +155,34 @@
           (println "recur" cur-y cur-x)
           (recur new-board (+ cur-y y-direction) (+ cur-x x-direction) (square-moveable? figure board (+ cur-y y-direction) (+ cur-x x-direction))))))))
 
-;; (probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 -1 0)
+(probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 -1 0)
 
-;; TODO saemtliche probe Matrixweise verodern
+
+(defn combine-vec
+  [fn vec1 vec2]
+  (mapv fn vec1 vec2))
+
+(defn combine-vec-2d
+  [f vec1 vec2]
+  (mapv (partial combine-vec f) vec1 vec2))
+
 (defn combine-probe-while [figure board current-y current-x y-dir x-dir]
   "prueft via probe-while mit allen Kombinationen aus dem array y-dir und x-dir"
+  (reduce
+   (partial combine-vec-2d (fn [x y] (or x y)))
+   (vec (repeat 8 (vec (repeat 8 false))))
    (for [y y-dir
          x x-dir]
-     (probe-while figure board current-y current-x y x)))
+      (probe-while figure board current-y current-x y x))))
 
-(comp)
-;; (combine-probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 [1 -1 0] [-1 1 0])
+;; (combine-probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 [-1] [0 1 -1])
+
+
+;; (combine-vec-2d (fn [x y] (or x y)) [[true false]] [[true false]])
+
+;; (reduce combine-vector-2d ([[true false]] [[false true]]))
+
+;; (combine-vector-2d [[false true]] [[true false]])
 
 
 ;; Methoden zum interagieren mit dem Schachbrett
