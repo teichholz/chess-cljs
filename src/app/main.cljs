@@ -5,6 +5,17 @@
 (defn reload! []
   (println "Code updated."))
 
+;; Helper
+(defn in-range [board y x]
+  (not (or (> y 7) (< y 0) (> x 7) (< x 0))))
+
+(defn nth-in-vec [board y x]
+  (nth (nth board y) x))
+
+(defn assoc-in-vec [vec y x value]
+  (assoc vec y (assoc (nth vec y) x value)))
+
+;; State
 (def css-state {:cell 100
                 :board (* 100 8)
                 :figure-gap 10})
@@ -29,90 +40,6 @@
   (let [team-prefix (if (= team :dark) "d" "l")
         type-prefix (subs (str fig) 1 2)]
     (str "/figures/Chess_" type-prefix team-prefix "t60.png")))
-
-(defprotocol Figure
-  "Protokoll für die moveSet funktion einer figur"
-  (moveSet [this]))
-
-(defrecord Pawn [team moved]
-  Figure
-  (moveSet [this] "not implemented yet"))
-
-(defrecord King [team]
-  Figure
-  (moveSet [this] "not implemented yet"))
-
-(defrecord Queen [team]
-  Figure
-  (moveSet [this] "not implemented yet"))
-
-(defrecord Castle [team]
-  Figure
-  (moveSet [this] "not implemented yet"))
-
-(defrecord Bishop [team]
-  Figure
-  (moveSet [this] "not implemented yet"))
-
-(defrecord Noble [team]
-  Figure
-  (moveSet [this] "not implemented yet"))
-
-(defn create-figure [fig team]
-  (assoc
-    (cond
-      (= :pawn fig) (Pawn. team nil)
-      (= :noble fig) (Noble. team)
-      (= :bishop fig) (Bishop. team)
-      (= :queen fig) (Queen. team)
-      (= :king fig) (King. team)
-      (= :rastle fig) (Castle. team))
-    :img (dispatch-img fig team)))
-
-
-(defn init-board []
-  "Gibt ein 8x8 Spielbrett in Form von Vektoren (Arraylists) zurück"
-  (let [pawn-light (repeat 8 (create-figure :pawn :light))
-        pawn-dark (repeat 8 (create-figure :pawn :dark))
-        backline-light [(create-figure :rastle :light) (create-figure :noble :light) (create-figure :bishop :light) (create-figure :queen :light)
-                        (create-figure :king :light) (create-figure :noble :light) (create-figure :bishop :light) (create-figure :rastle :light)]
-        backline-dark [(create-figure :rastle :dark) (create-figure :noble :dark) (create-figure :bishop :dark) (create-figure :queen :dark)
-                        (create-figure :king :dark) (create-figure :noble :dark) (create-figure :bishop :dark) (create-figure :rastle :dark)]]
-    [backline-light (vec pawn-light) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec pawn-dark) backline-dark]))
-
-
-
-
-(def state (r/atom {:board [(init-board)] ; Letzte Brett in Board ist das aktuelle
-                    :lightTeam #{}
-                    :darkTeam #{}
-                    :lightKing nil
-                    :darkKing nil
-                    :selected nil})) ; ausgewaehlte Figur
-;; zeiger auf das board
-(def board-state (r/cursor state [:board]))
-(def selected-state (r/cursor state [:selected]))
-;; muss derefed werden, quasi cursor mit einer Funktion
-(def last-board (reagent.ratom/make-reaction #(peek (:board @state))))
-
-
-;; Selektoren
-;; (defn current-board [state]
-;;   "liefert das aktuelle Board"
-;;   (peek (:board @state)))
-
-;; Helper
-(defn in-range [board y x]
-  (not (or (> y 7) (< y 0) (> x 7) (< x 0))))
-
-(defn nth-in-vec [board y x]
-  (nth (nth board y) x))
-
-(defn assoc-in-vec [vec y x value]
-  (assoc vec y (assoc (nth vec y) x value)))
-
-;; (assoc-in-vec [[1 2 3]] 0 1 true)
-
 
 ;; Fig movement
 (defn square-empty? [board y x]
@@ -155,8 +82,6 @@
           (println "recur" cur-y cur-x)
           (recur new-board (+ cur-y y-direction) (+ cur-x x-direction) (square-moveable? figure board (+ cur-y y-direction) (+ cur-x x-direction))))))))
 
-(probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 -1 0)
-
 
 (defn combine-vec
   [fn vec1 vec2]
@@ -175,14 +100,70 @@
          x x-dir]
       (probe-while figure board current-y current-x y x))))
 
-;; (combine-probe-while (nth-in-vec @last-board 6 0) @last-board 6 0 [-1] [0 1 -1])
+(defprotocol Figure
+  "Protokoll für die move-set funktion einer figur"
+  (move-set [this]))
+
+(defrecord Pawn [team moved]
+  Figure
+  (move-set [this] "not implemented yet"))
+
+(defrecord King [team]
+  Figure
+  (move-set [this] "not implemented yet"))
+
+(defrecord Queen [team]
+  Figure
+  (move-set [this] "not implemented yet"))
+
+(defrecord Castle [team]
+  Figure
+  (move-set [this] "not implemented yet"))
+
+(defrecord Bishop [team]
+  Figure
+  (move-set [this] "not implemented yet"))
+
+(defrecord Noble [team]
+  Figure
+  (move-set [this] "not implemented yet"))
 
 
-;; (combine-vec-2d (fn [x y] (or x y)) [[true false]] [[true false]])
+(defn create-figure [fig team]
+  (assoc
+    (cond
+      (= :pawn fig) (Pawn. team nil)
+      (= :noble fig) (Noble. team)
+      (= :bishop fig) (Bishop. team)
+      (= :queen fig) (Queen. team)
+      (= :king fig) (King. team)
+      (= :rastle fig) (Castle. team))
+    :img (dispatch-img fig team)))
 
-;; (reduce combine-vector-2d ([[true false]] [[false true]]))
+(defn init-board []
+  "Gibt ein 8x8 Spielbrett in Form von Vektoren (Arraylists) zurück"
+  (let [pawn-light (repeat 8 (create-figure :pawn :light))
+        pawn-dark (repeat 8 (create-figure :pawn :dark))
+        backline-light [(create-figure :rastle :light) (create-figure :noble :light) (create-figure :bishop :light) (create-figure :queen :light)
+                        (create-figure :king :light) (create-figure :noble :light) (create-figure :bishop :light) (create-figure :rastle :light)]
+        backline-dark [(create-figure :rastle :dark) (create-figure :noble :dark) (create-figure :bishop :dark) (create-figure :queen :dark)
+                        (create-figure :king :dark) (create-figure :noble :dark) (create-figure :bishop :dark) (create-figure :rastle :dark)]]
+    [backline-light (vec pawn-light) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec pawn-dark) backline-dark]))
 
-;; (combine-vector-2d [[false true]] [[true false]])
+
+
+
+(def state (r/atom {:board [(init-board)] ; Letzte Brett in Board ist das aktuelle
+                    :lightTeam #{}
+                    :darkTeam #{}
+                    :lightKing nil
+                    :darkKing nil
+                    :selected nil})) ; ausgewaehlte Figur
+;; zeiger auf das board
+(def board-state (r/cursor state [:board]))
+(def selected-state (r/cursor state [:selected]))
+;; muss derefed werden, quasi cursor mit einer Funktion
+(def last-board (reagent.ratom/make-reaction #(peek (:board @state))))
 
 
 ;; Methoden zum interagieren mit dem Schachbrett
@@ -192,7 +173,7 @@
 
 (defn set-last-board! [board]
    "Fuegt ein neues Board ein"
-  (swap! state (fn [board-state] (conj board-state board))))
+  (swap! board-state (fn [board-state] (conj board-state board))))
 
 (defn move-figure [board from-y from-x to-y to-x]
   "bewegt eine Figur und gibt das neue Board zurueck"
@@ -201,11 +182,15 @@
       (assoc-in-vec board from-y from-x nil)
       (assoc-in-vec board to-y to-x figure))))
 
-;; (defn maybe-move-figure [board from-y from-x to-y to-x])
-;;   "versucht eine Figur zu bewegen, gibt das neue Board zurueck"
+(defn maybe-move-figure [board from-y from-x to-y to-x]
+  "versucht eine Figur zu bewegen, gibt das neue Board zurueck"
+  (let [figure (nth-in-vec board from-y from-x)
+        possible (move-set figure)]
+    true))
 
 
-;;
+
+;; Komponenten
 
 (defn figure [figure]
   [:img (style/use-style css-figure {:src (:img figure)})])
