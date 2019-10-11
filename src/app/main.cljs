@@ -9,11 +9,23 @@
 (defn in-range [board y x]
   (not (or (> y 7) (< y 0) (> x 7) (< x 0))))
 
-(defn nth-in-vec [board y x]
-  (nth (nth board y) x))
+(defn nth-in-vec
+  ([board y x]
+   (nth (nth board y) x))
+  ([board col]
+   (let [[key-value] [col]
+         [x y] key-value]
+     (if (empty? col)
+       board
+       (nth-in-vec (nth-in-vec board x y) (rest col))))))
+
+
 
 (defn assoc-in-vec [vec y x value]
   (assoc vec y (assoc (nth vec y) x value)))
+
+(defn empty-board []
+  ((repeat 8 (vec (repeat 8 false)))))
 
 ;; State
 (def css-state {:cell 100
@@ -102,11 +114,20 @@
 
 (defprotocol Figure
   "Protokoll für die move-set funktion einer figur"
-  (move-set [this]))
+  (move-set [this board current-y current-x]))
 
 (defrecord Pawn [team moved]
   Figure
-  (move-set [this] "not implemented yet"))
+  (move-set [this board current-y current-x]
+    (let [possible (empty-board)
+          direction (if (= (:team this) :light) 1 -1)
+          one (square-moveable? this board (+ current-y direction) current-x)
+          two (if (= (:moved this) false) (square-moveable? this board (+ current-y (* 2 direction)) current-x))
+          diagonal-minus (if (not (= (:team this) (:team (nth-in-vec board current-y (- current-x 1))))) true false)]
+
+      ()
+      )))
+
 
 (defrecord King [team]
   Figure
@@ -114,15 +135,21 @@
 
 (defrecord Queen [team]
   Figure
-  (move-set [this] "not implemented yet"))
+  (move-set [this board current-y current-x]
+    (combine-probe-while this board current-y current-x [1 -1 0] [1 -1 0])))
 
 (defrecord Castle [team]
   Figure
-  (move-set [this] "not implemented yet"))
+  (move-set [this board current-y current-x]
+    (reduce (partial combine-vec-2d (fn [x y] (or x y)))
+      (combine-probe-while this board current-y current-x [1 -1] [0])
+      (combine-probe-while this board current-y current-x [0] [1 -1]))))
+
 
 (defrecord Bishop [team]
   Figure
-  (move-set [this] "not implemented yet"))
+  (move-set [this board current-y current-x]
+    (combine-probe-while this board current-y current-x [1 -1] [1 -1])))
 
 (defrecord Noble [team]
   Figure
