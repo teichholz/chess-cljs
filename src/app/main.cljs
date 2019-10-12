@@ -17,15 +17,30 @@
          [x y] key-value]
      (if (empty? col)
        board
-       (nth-in-vec (nth-in-vec board x y) (rest col))))))
+       (recur (nth-in-vec board x y) (rest col))))))
 
 
+(defn assoc-in-vec
+  ([vec y x value]
+   (assoc vec y (assoc (nth vec y) x value)))
+  ([vec col]
+   (let [[key-value] [col]
+         [y x value] key-value]
+     (if (empty? col)
+       vec
+       (recur (assoc-in-vec vec y x value) (rest col))))))
 
-(defn assoc-in-vec [vec y x value]
-  (assoc vec y (assoc (nth vec y) x value)))
 
 (defn empty-board []
   ((repeat 8 (vec (repeat 8 false)))))
+
+(let [p (empty-board)]
+  ;; (assoc-in-vec p ([0 0 true] [0 1 true] [0 2 true]))
+  (assoc-in-vec p 0 0 true)
+  )
+
+
+
 
 ;; State
 (def css-state {:cell 100
@@ -124,14 +139,12 @@
           one (square-moveable? this board (+ current-y direction) current-x)
           two (if (= (:moved this) false) (square-moveable? this board (+ current-y (* 2 direction)) current-x))
           diagonal-minus (if (not (= (:team this) (:team (nth-in-vec board current-y (- current-x 1))))) true false)]
-
-      ()
-      )))
+      nil)))
 
 
 (defrecord King [team]
   Figure
-  (move-set [this] "not implemented yet"))
+  (move-set [this board current-y current-x] "not implemented yet"))
 
 (defrecord Queen [team]
   Figure
@@ -153,7 +166,7 @@
 
 (defrecord Noble [team]
   Figure
-  (move-set [this] "not implemented yet"))
+  (move-set [this board current-y current-x] "not implemented yet"))
 
 
 (defn create-figure [fig team]
@@ -212,7 +225,7 @@
 (defn maybe-move-figure [board from-y from-x to-y to-x]
   "versucht eine Figur zu bewegen, gibt das neue Board zurueck"
   (let [figure (nth-in-vec board from-y from-x)
-        possible (move-set figure)]
+        possible (move-set figure board from-y from-x)]
     true))
 
 
