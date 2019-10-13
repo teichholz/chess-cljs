@@ -24,23 +24,15 @@
   ([vec y x value]
    (assoc vec y (assoc (nth vec y) x value)))
   ([vec col]
-   (let [[key-value] [col]
-         [y x value] key-value]
+   (let [[index-value] col
+         [y x value] index-value]
      (if (empty? col)
        vec
        (recur (assoc-in-vec vec y x value) (rest col))))))
 
 
 (defn empty-board []
-  ((repeat 8 (vec (repeat 8 false)))))
-
-(let [p (empty-board)]
-  ;; (assoc-in-vec p ([0 0 true] [0 1 true] [0 2 true]))
-  (assoc-in-vec p 0 0 true)
-  )
-
-
-
+   (vec (repeat 8 (vec (repeat 8 false)))))
 
 ;; State
 (def css-state {:cell 100
@@ -138,8 +130,11 @@
           direction (if (= (:team this) :light) 1 -1)
           one (square-moveable? this board (+ current-y direction) current-x)
           two (if (= (:moved this) false) (square-moveable? this board (+ current-y (* 2 direction)) current-x))
-          diagonal-minus (if (not (= (:team this) (:team (nth-in-vec board current-y (- current-x 1))))) true false)]
-      nil)))
+          ;; TODO vermutlic pruefen, ob dort auch eine Figur steht
+          diagonal-minus (if (not (= (:team this) (:team (nth-in-vec board current-y (- current-x 1))))) true false)
+          diagonal-plus (if (not (= (:team this) (:team (nth-in-vec board current-y (+ current-x 1))))) true false)]
+      (assoc-in-vec possible (list [(+ current-y direction) current-x one] [(+ current-y (* 2 direction)) current-x two]
+                                   [current-y (- current-x 1) diagonal-minus] [current-y (+ current-x 1) diagonal-plus])))))
 
 
 (defrecord King [team]
@@ -166,7 +161,11 @@
 
 (defrecord Noble [team]
   Figure
-  (move-set [this board current-y current-x] "not implemented yet"))
+  (move-set [this board current-y current-x]
+    (let [points (list [(+ current-y 2) (- current-x 1)] [(+ current-y 2) (+ current-x 1)]
+                       [(- current-y 2) (- current-x 1)] [(- current-y 2) (+ current-x 1)]
+                       [(+ current-y 1) (+ current-x 2)] [(- current-y 1) (- current-x 2)])]
+      nil)))
 
 
 (defn create-figure [fig team]
