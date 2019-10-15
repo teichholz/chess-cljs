@@ -11,7 +11,10 @@
 
 (defn nth-in-vec
   ([board y x]
-   (nth (nth board y) x))
+   (if (in-range board y x)
+     (nth (nth board y) x)
+     nil))
+
   ([board col]
    (let [[key-value] [col]
          [x y] key-value]
@@ -19,8 +22,8 @@
        board
        (recur (nth-in-vec board x y) (rest col))))))
 
-
 (defn assoc-in-vec
+  "Setzt in Vektor vec die Werte von Collection col in Form von (list (y x value) ...)"
   ([vec y x value]
    (assoc vec y (assoc (nth vec y) x value)))
   ([vec col]
@@ -30,9 +33,8 @@
        vec
        (recur (assoc-in-vec vec y x value) (rest col))))))
 
-
 (defn empty-board []
-   (vec (repeat 8 (vec (repeat 8 false)))))
+  (vec (repeat 8 (vec (repeat 8 false)))))
 
 ;; State
 (def css-state {:cell 100
@@ -50,10 +52,10 @@
                  :display "flex"
                  :justify-content "center"
                  :align-items "center"})
+(def css-square-hint {:border "2px solid red"})
 (def css-figure {:display "block"
                  :width (str (- (:cell css-state) (:figure-gap css-state)) "px")
                  :height (str (- (:cell css-state) (:figure-gap css-state)) "px")})
-
 
 (defn dispatch-img [fig team]
   (let [team-prefix (if (= team :dark) "d" "l")
@@ -101,7 +103,6 @@
           (println "recur" cur-y cur-x)
           (recur new-board (+ cur-y y-direction) (+ cur-x x-direction) (square-moveable? figure board (+ cur-y y-direction) (+ cur-x x-direction))))))))
 
-
 (defn combine-vec
   [fn vec1 vec2]
   (mapv fn vec1 vec2))
@@ -117,7 +118,7 @@
    (vec (repeat 8 (vec (repeat 8 false))))
    (for [y y-dir
          x x-dir]
-      (probe-while figure board current-y current-x y x))))
+     (probe-while figure board current-y current-x y x))))
 
 (defprotocol Figure
   "Protokoll für die move-set funktion einer figur"
@@ -130,16 +131,30 @@
           direction (if (= (:team this) :light) 1 -1)
           one (square-moveable? this board (+ current-y direction) current-x)
           two (if (= (:moved this) false) (square-moveable? this board (+ current-y (* 2 direction)) current-x))
-          ;; TODO vermutlic pruefen, ob dort auch eine Figur steht
-          diagonal-minus (if (not (= (:team this) (:team (nth-in-vec board current-y (- current-x 1))))) true false)
-          diagonal-plus (if (not (= (:team this) (:team (nth-in-vec board current-y (+ current-x 1))))) true false)]
-      (assoc-in-vec possible (list [(+ current-y direction) current-x one] [(+ current-y (* 2 direction)) current-x two]
-                                   [current-y (- current-x 1) diagonal-minus] [current-y (+ current-x 1) diagonal-plus])))))
+          diagonal-minus (not (= (:team this) (or
+                                               (:team (nth-in-vec board current-y (- current-x 1)))
+                                               (:team this))))
+          diagonal-plus (not (= (:team this) (or
+                                              (:team (nth-in-vec board current-y (+ current-x 1)))
+                                              (:team this))))]
+      ;; TODO fixen
+      (assoc-in-vec possible (filter
+                              (fn [x] (nth x 2))
+                              (list [(+ current-y direction) current-x one] [(+ current-y (* 2 direction)) current-x two]
+                                    [current-y (- current-x 1) diagonal-minus] [current-y (+ current-x 1) diagonal-plus]))))))
 
+;(filter (fn [x] (nth x 2)) (list [1 2 true] [2 3 false]))
+;(map (fn [x] (println x)) '([1 2 true] [2 3 false]))
 
 (defrecord King [team]
   Figure
-  (move-set [this board current-y current-x] "not implemented yet"))
+  (move-set [this board current-y current-x]
+    (let [points (list [(+ current-y 1) current-x] [(- current-y 1) current-x]
+                       [current-y (- current-x 1)] [current-y (+ current-x 1)]
+                       [(+ current-y 1) (+ current-x 1)] [(- current-y 1) (- current-x 1)]
+                       [(- current-y 1) (+ current-x 1)] [(+ current-y 1) (- current-x 1)])]
+      (assoc-in-vec (empty-board)
+                    (filter (fn [x] (square-moveable? this board (nth x 0) (nth x 1))) points)))))
 
 (defrecord Queen [team]
   Figure
@@ -150,9 +165,8 @@
   Figure
   (move-set [this board current-y current-x]
     (reduce (partial combine-vec-2d (fn [x y] (or x y)))
-      (combine-probe-while this board current-y current-x [1 -1] [0])
-      (combine-probe-while this board current-y current-x [0] [1 -1]))))
-
+            (combine-probe-while this board current-y current-x [1 -1] [0])
+            (combine-probe-while this board current-y current-x [0] [1 -1]))))
 
 (defrecord Bishop [team]
   Figure
@@ -165,19 +179,19 @@
     (let [points (list [(+ current-y 2) (- current-x 1)] [(+ current-y 2) (+ current-x 1)]
                        [(- current-y 2) (- current-x 1)] [(- current-y 2) (+ current-x 1)]
                        [(+ current-y 1) (+ current-x 2)] [(- current-y 1) (- current-x 2)])]
-      nil)))
-
+      (assoc-in-vec (empty-board)
+                    (map (fn [x] (conj x (square-moveable? this board (nth x 0) (nth x 1)))) points)))))
 
 (defn create-figure [fig team]
   (assoc
-    (cond
-      (= :pawn fig) (Pawn. team nil)
-      (= :noble fig) (Noble. team)
-      (= :bishop fig) (Bishop. team)
-      (= :queen fig) (Queen. team)
-      (= :king fig) (King. team)
-      (= :rastle fig) (Castle. team))
-    :img (dispatch-img fig team)))
+   (cond
+     (= :pawn fig) (Pawn. team nil)
+     (= :noble fig) (Noble. team)
+     (= :bishop fig) (Bishop. team)
+     (= :queen fig) (Queen. team)
+     (= :king fig) (King. team)
+     (= :rastle fig) (Castle. team))
+   :img (dispatch-img fig team)))
 
 (defn init-board []
   "Gibt ein 8x8 Spielbrett in Form von Vektoren (Arraylists) zurück"
@@ -186,13 +200,11 @@
         backline-light [(create-figure :rastle :light) (create-figure :noble :light) (create-figure :bishop :light) (create-figure :queen :light)
                         (create-figure :king :light) (create-figure :noble :light) (create-figure :bishop :light) (create-figure :rastle :light)]
         backline-dark [(create-figure :rastle :dark) (create-figure :noble :dark) (create-figure :bishop :dark) (create-figure :queen :dark)
-                        (create-figure :king :dark) (create-figure :noble :dark) (create-figure :bishop :dark) (create-figure :rastle :dark)]]
+                       (create-figure :king :dark) (create-figure :noble :dark) (create-figure :bishop :dark) (create-figure :rastle :dark)]]
     [backline-light (vec pawn-light) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec (repeat 8 nil)) (vec pawn-dark) backline-dark]))
 
-
-
-
 (def state (r/atom {:board [(init-board)] ; Letzte Brett in Board ist das aktuelle
+                    :possible (empty-board)
                     :lightTeam #{}
                     :darkTeam #{}
                     :lightKing nil
@@ -200,75 +212,101 @@
                     :selected nil})) ; ausgewaehlte Figur
 ;; zeiger auf das board
 (def board-state (r/cursor state [:board]))
+(def possible-state (r/cursor state [:highlight]))
 (def selected-state (r/cursor state [:selected]))
 ;; muss derefed werden, quasi cursor mit einer Funktion
 (def last-board (reagent.ratom/make-reaction #(peek (:board @state))))
 
 
 ;; Methoden zum interagieren mit dem Schachbrett
-(defn set-selected! [board y x]
+
+
+(defn set-selected! [figure]
   "waehlt eine Figur an, merkt sich diese im Zustand und gibt sie zurueck"
-  (reset! selected-state (nth-in-vec board y x)))
+  (reset! selected-state figure))
+
+(defn set-possible! [possible]
+  "waehlt eine Figur an, merkt sich diese im Zustand und gibt sie zurueck"
+  (reset! possible-state possible))
 
 (defn set-last-board! [board]
-   "Fuegt ein neues Board ein"
+  "Fuegt ein neues Board ein"
   (swap! board-state (fn [board-state] (conj board-state board))))
 
-(defn move-figure [board from-y from-x to-y to-x]
+(defn move-figure [board figure to-y to-x]
+  ;; TODO muss ein Figur nehmen
   "bewegt eine Figur und gibt das neue Board zurueck"
-  (if (not (square-empty? board from-y from-x))
-    (let [figure (nth-in-vec board from-y from-x)]
-      (assoc-in-vec board from-y from-x nil)
-      (assoc-in-vec board to-y to-x figure))))
+  (assoc-in-vec (assoc-in-vec board (:y figure) (:x figure) nil) to-y to-x (:figure figure)))
 
-(defn maybe-move-figure [board from-y from-x to-y to-x]
-  "versucht eine Figur zu bewegen, gibt das neue Board zurueck"
-  (let [figure (nth-in-vec board from-y from-x)
-        possible (move-set figure board from-y from-x)]
-    true))
-
+(defn maybe-move-figure [board click-y click-x]
+  ;; TODO sollt last-board sowie das square-y und square-x nehmen
+  "Waehlt entweder eine Figur aus oder bewegt sie, veraendert den Zustand"
+  (if @selected-state
+    ;; Mit Zustand arbeiten
+    (if (nth-in-vec @possible-state click-y click-x)
+      (do
+        (set-last-board! (move-figure board (:figure @selected-state) click-y click-x))
+        (set-selected! nil)
+        (set-possible! nil))
+      (do
+        (println "Spielzug nicht moeglich!")
+        (set-selected! nil)
+        (set-possible! nil)))
+    ;; Mit parameter arbeiten
+    (let [figure (nth-in-vec board click-y click-x)]
+      (if figure
+        (do
+          (set-selected! {:figure figure
+                          :y click-y
+                          :x click-x})
+          (set-possible! (move-set figure board click-y click-x)))
+        (println "Auf dem Square ist keine Figur")))))
 
 
 ;; Komponenten
 
+
 (defn figure [figure]
   [:img (style/use-style css-figure {:src (:img figure)})])
 
-
-(defn square [y x fig]
+(defn square [y x fig highlight]
   "Eine Komponente zum darstellen eines Quadrats"
   (let [tf (iterate (fn [x] (not x)) true)]
     [:div.Square
-      (style/use-style
-                  (into css-square
-                      (if (nth tf (+ (* y 8) x y))
-                        {:background-color "gray"}
-                        {:background-color "#222222"}))
-                  {:on-click #(.log js/console "hey")})
+     (style/use-style
+      (into (into css-square
+                  (if (nth tf (+ (* y 8) x y))
+                    {:background-color "gray"}
+                    {:background-color "#222222"}))
+            (when highlight
+              css-square-hint))
+      {:on-click
+       #(maybe-move-figure @last-board y x)
+       ;#(println y x )
+       })
      (when fig
-      [figure fig])]))
+       [figure fig])]))
 
-(defn map-board [board]
+(defn map-board [board highlight]
   "Gibt eine Sequenz valider Hiccup Syntax in From <row> 8 x <square /></row>"
   (map-indexed
    (fn [rIndex row]
      (into [:div.Row (style/use-style css-row)]
            (map-indexed
             (fn [cIndex cell]
-              [square rIndex cIndex cell])
+              [square rIndex cIndex cell (nth-in-vec highlight rIndex cIndex)])
             row)))
    board))
 
-
-(defn board [board]
+(defn board [board highlight]
   "Valide Hiccup Syntax zum darstellen des 8x8 Brett via divs"
   (into
    [:div.Board (style/use-style css-board)]
-   (map-board board)))
+   (map-board board highlight)))
 
-(defn game [state]
+(defn game []
   [:div.Game (style/use-style css-game)
-   [board @last-board]])
+   [board @last-board @possible-state]])
 
 (defn init-app []
   (style/class "*" {:box-sizing "border-box"})
