@@ -127,21 +127,23 @@
 (defrecord Pawn [team moved]
   Figure
   (move-set [this board current-y current-x]
+    ;; TODO pawn kann manchmal Figure falsch schlagen, diagonale mit nth-in-vec pruefen
     (let [possible (empty-board)
           direction (if (= (:team this) :light) 1 -1)
           one (square-moveable? this board (+ current-y direction) current-x)
-          two (if (= (:moved this) false) (square-moveable? this board (+ current-y (* 2 direction)) current-x))
+          two (if (not (:moved this)) (square-moveable? this board (+ current-y (* 2 direction)) current-x))
           diagonal-minus (not (= (:team this) (or
                                                (:team (nth-in-vec board current-y (- current-x 1)))
                                                (:team this))))
           diagonal-plus (not (= (:team this) (or
                                               (:team (nth-in-vec board current-y (+ current-x 1)))
                                               (:team this))))]
-      ;; TODO fixen
       (assoc-in-vec possible (filter
                               (fn [x] (nth x 2))
                               (list [(+ current-y direction) current-x one] [(+ current-y (* 2 direction)) current-x two]
                                     [current-y (- current-x 1) diagonal-minus] [current-y (+ current-x 1) diagonal-plus]))))))
+
+
 
 ;(filter (fn [x] (nth x 2)) (list [1 2 true] [2 3 false]))
 ;(map (fn [x] (println x)) '([1 2 true] [2 3 false]))
@@ -185,7 +187,7 @@
 (defn create-figure [fig team]
   (assoc
    (cond
-     (= :pawn fig) (Pawn. team nil)
+     (= :pawn fig) (Pawn. team false)
      (= :noble fig) (Noble. team)
      (= :bishop fig) (Bishop. team)
      (= :queen fig) (Queen. team)
@@ -234,22 +236,20 @@
   (swap! board-state (fn [board-state] (conj board-state board))))
 
 (defn move-figure [board figure to-y to-x]
-  ;; TODO muss ein Figur nehmen
   "bewegt eine Figur und gibt das neue Board zurueck"
-  (assoc-in-vec (assoc-in-vec board (:y figure) (:x figure) nil) to-y to-x (:figure figure)))
+  (let [figure (if (instance? app.main/Pawn (:figure figure)) (assoc-in figure [:figure :moved] :true) figure)]
+      (assoc-in-vec (assoc-in-vec board (:y figure) (:x figure) nil) to-y to-x (:figure figure))))
 
 (defn maybe-move-figure [board click-y click-x]
-  ;; TODO sollt last-board sowie das square-y und square-x nehmen
   "Waehlt entweder eine Figur aus oder bewegt sie, veraendert den Zustand"
   (if @selected-state
     ;; Mit Zustand arbeiten
     (if (nth-in-vec @possible-state click-y click-x)
       (do
-        (set-last-board! (move-figure board (:figure @selected-state) click-y click-x))
+        (set-last-board! (move-figure board @selected-state click-y click-x))
         (set-selected! nil)
         (set-possible! nil))
       (do
-        (println "Spielzug nicht moeglich!")
         (set-selected! nil)
         (set-possible! nil)))
     ;; Mit parameter arbeiten
@@ -262,6 +262,7 @@
           (set-possible! (move-set figure board click-y click-x)))
         (println "Auf dem Square ist keine Figur")))))
 
+(instance? app.main/Castle (nth-in-vec @last-board 0 0))
 
 ;; Komponenten
 
