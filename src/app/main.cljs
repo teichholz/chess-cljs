@@ -100,7 +100,6 @@
         (assoc-in-vec pos-board cur-y cur-x true)
         ;; mach weiter
         (let [new-board (assoc-in-vec pos-board cur-y cur-x true)] ; setzt board an der richtigen stelle auf true
-          (println "recur" cur-y cur-x)
           (recur new-board (+ cur-y y-direction) (+ cur-x x-direction) (square-moveable? figure board (+ cur-y y-direction) (+ cur-x x-direction))))))))
 
 (defn combine-vec
@@ -156,7 +155,9 @@
                        [(+ current-y 1) (+ current-x 1)] [(- current-y 1) (- current-x 1)]
                        [(- current-y 1) (+ current-x 1)] [(+ current-y 1) (- current-x 1)])]
       (assoc-in-vec (empty-board)
-                    (filter (fn [x] (square-moveable? this board (nth x 0) (nth x 1))) points)))))
+                    (filter
+                     (fn [x] (nth x 2))
+                     (map (fn [x] (conj x (square-moveable? this board (nth x 0) (nth x 1)))) points))))))
 
 (defrecord Queen [team]
   Figure
@@ -182,7 +183,9 @@
                        [(- current-y 2) (- current-x 1)] [(- current-y 2) (+ current-x 1)]
                        [(+ current-y 1) (+ current-x 2)] [(- current-y 1) (- current-x 2)])]
       (assoc-in-vec (empty-board)
-                    (map (fn [x] (conj x (square-moveable? this board (nth x 0) (nth x 1)))) points)))))
+                    (filter
+                     (fn [x] (nth x 2))
+                     (map (fn [x] (conj x (square-moveable? this board (nth x 0) (nth x 1)))) points))))))
 
 (defn create-figure [fig team]
   (assoc
@@ -249,6 +252,7 @@
         (set-last-board! (move-figure board @selected-state click-y click-x))
         (set-selected! nil)
         (set-possible! nil))
+      ;; TODO: Hot swapping wenn man auf Figur vom gleichem Team drueckt
       (do
         (set-selected! nil)
         (set-possible! nil)))
